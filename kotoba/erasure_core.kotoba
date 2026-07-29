@@ -1,0 +1,193 @@
+(ns erasure-core
+  (:export [gf-add gf-mul gf-pow gf-inv
+            group-count shard-count group-of local-parity-of
+            group-start group-end group-size role-of
+            cauchy-entry generator-entry
+            data-missing-from cover-missing locally-repairable?
+            local-repair-reads repairable-group-from first-repairable-group
+            gopalan-distance-bound max-tolerated-erasures]))
+
+;; A `.kotoba` port of the DECISION layer of this library, per ADR-2607299200
+;; section 5: the generator matrix and the repair plan are decisions and belong
+;; in the verified language; the multiply-accumulate over megabytes is
+;; mechanism and stays in a host provider.
+;;
+;; Everything here maps small values to small values, so the whole module sits
+;; in the kotoba/pure profile — no capabilities, no shard bytes. A shard is
+;; never a Kotoba value: today's compile path caps a string leaf at 64 KiB and
+;; an EDN value at 1 MiB, and even when that lifts (migration plan W4) feeding
+;; a 4 MiB shard through here would be putting mechanism in the wrong place.
+;;
+;; `erasure.gf`, `erasure.matrix` and `erasure.lrc` on the .cljc side mirror
+;; these functions one for one, and `erasure.kotoba-parity-test` compiles this
+;; file and asserts equality on every case rather than on a sample.
+
+;; --- GF(2^8) --------------------------------------------------------------
+;; Reduction polynomial 285 = 0x11D (x^8 + x^4 + x^3 + x^2 + 1), alpha = 2.
+;; No tables: 285 as a literal plus shift-and-add is smaller than a 256-entry
+;; vector would be, and it is the same algorithm `erasure.gf/mul-def` states.
+
+(defn gf-add [a :i64 b :i64] :i64
+  (bit-xor a b))
+
+(defn gf-mul [a :i64 b :i64] :i64
+  ;; Each round folds bit 0 of y with the current x, then doubles x and
+  ;; reduces when it overflows 8 bits. `quot y 2` rather than a shift keeps
+  ;; the loop readable; both are one instruction.
+  (loop [x (bit-and a 255)
+         y (bit-and b 255)
+         acc 0]
+    (if (zero? y)
+      acc
+      (recur (let [doubled (i64-shift-left x 1)]
+               (if (< doubled 256)
+                 doubled
+                 (bit-xor doubled 285)))
+             (quot y 2)
+             (if (= 1 (bit-and y 1))
+               (bit-xor acc x)
+               acc)))))
+
+(defn gf-pow [a :i64 e :i64] :i64
+  (loop [base (bit-and a 255)
+         exp e
+         acc 1]
+    (if (zero? exp)
+      acc
+      (recur (gf-mul base base)
+             (quot exp 2)
+             (if (= 1 (bit-and exp 1))
+               (gf-mul acc base)
+               acc)))))
+
+(defn gf-inv [a :i64] :i64
+  ;; a^255 = 1 for every non-zero a, so a^254 is the inverse. Zero has none
+  ;; and yields zero, matching `erasure.gf/inv` — callers guard first.
+  (if (zero? a)
+    0
+    (gf-pow a 254)))
+
+;; --- layout ---------------------------------------------------------------
+
+(defn group-count [k :i64 r :i64] :i64
+  (quot (+ k (- r 1)) r))
+
+(defn shard-count [k :i64 r :i64 g :i64] :i64
+  (+ k (+ (group-count k r) g)))
+
+(defn group-of [i :i64 r :i64] :i64
+  (quot i r))
+
+(defn local-parity-of [k :i64 q :i64] :i64
+  (+ k q))
+
+(defn group-start [q :i64 r :i64] :i64
+  (* q r))
+
+(defn group-end [k :i64 r :i64 q :i64] :i64
+  ;; The last group is short when r does not divide k.
+  (let [e (* (+ q 1) r)]
+    (if (< k e) k e)))
+
+(defn group-size [k :i64 r :i64 q :i64] :i64
+  (- (group-end k r q) (group-start q r)))
+
+(defn role-of [k :i64 r :i64 g :i64 i :i64] :i64
+  ;; 0 data, 1 local parity, 2 global parity, 3 out of range. An i64 tag
+  ;; rather than a variant: the .cljc side returns a keyword, and comparing
+  ;; small integers across the two runtimes needs no marshalling.
+  (if (< i 0)
+    3
+    (if (< i k)
+      0
+      (if (< i (+ k (group-count k r)))
+        1
+        (if (< i (shard-count k r g))
+          2
+          3)))))
+
+;; --- generator matrix -----------------------------------------------------
+
+(defn cauchy-entry [k :i64 i :i64 j :i64] :i64
+  ;; C[i][j] = 1/(x_i + y_j) with x_i = k+i and y_j = j. The sets are
+  ;; disjoint because k+i >= k > j, so the xor is never zero and every square
+  ;; submatrix is nonsingular.
+  (gf-inv (bit-xor (+ k i) j)))
+
+(defn generator-entry [k :i64 r :i64 g :i64 i :i64 j :i64] :i64
+  ;; Coefficient of data shard j in shard i — the whole generator matrix as
+  ;; one function. A local parity is the sum of its group's identity rows,
+  ;; which is why it carries a real equation and belongs in a global solve.
+  (let [role (role-of k r g i)]
+    (if (= role 0)
+      (if (= i j) 1 0)
+      (if (= role 1)
+        (if (= (group-of j r) (- i k)) 1 0)
+        (if (= role 2)
+          (cauchy-entry k (- i (+ k (group-count k r))) j)
+          0)))))
+
+;; --- local repair decision ------------------------------------------------
+;; The 99% path. A single lost shard inside a group is rebuilt by xoring the
+;; rest of that group's cover, costing `group-size` reads and zero multiplies.
+
+;; NOTE ON SHAPE. `max-parameters` in this compiler is 5, and a `loop` counts
+;; its bindings PLUS every outer variable its body captures against that
+;; budget. Walking a group while holding k/r/q/erased/end blows it. So the
+;; scans below are written as explicit tail-recursive functions whose state is
+;; all in the parameter list — no captures, nothing to overflow. This is a
+;; real constraint of the current compile path, not a style choice.
+
+(defn data-missing-from [end :i64 j :i64 erased [:set :i64] acc :i64] :i64
+  ;; How many data shards in [j, end) are erased.
+  (if (< j end)
+    (data-missing-from end (+ j 1) erased
+                       (if (typed-set-contains [:set :i64] erased j)
+                         (+ acc 1)
+                         acc))
+    acc))
+
+(defn cover-missing [k :i64 r :i64 q :i64 erased [:set :i64]] :i64
+  ;; How many of group q's cover — its data shards plus its local parity —
+  ;; are erased.
+  (+ (data-missing-from (group-end k r q) (group-start q r) erased 0)
+     (if (typed-set-contains [:set :i64] erased (local-parity-of k q))
+       1
+       0)))
+
+(defn locally-repairable? [k :i64 r :i64 q :i64 erased [:set :i64]] :bool
+  ;; Folded through `if` with literal true/false rather than returned
+  ;; directly: a comparison is usable as an `if` condition in this profile
+  ;; but does not carry type :bool in a value position, the same wrinkle
+  ;; `or` has. Returning `(= 1 ...)` is an expression type mismatch.
+  (if (= 1 (cover-missing k r q erased))
+    true
+    false))
+
+(defn local-repair-reads [k :i64 r :i64 q :i64] :i64
+  ;; Cover size is group-size + 1; rebuilding one member reads the others.
+  (group-size k r q))
+
+(defn repairable-group-from [k :i64 r :i64 q :i64 erased [:set :i64]] :i64
+  (if (< q (group-count k r))
+    (if (locally-repairable? k r q erased)
+      q
+      (repairable-group-from k r (+ q 1) erased))
+    -1))
+
+(defn first-repairable-group [k :i64 r :i64 erased [:set :i64]] :i64
+  ;; Lowest-numbered group that can finish on its own, or -1. Lowest-first is
+  ;; not cosmetic: it is what makes the plan comparable to the .cljc side for
+  ;; equality instead of for plausibility.
+  (repairable-group-from k r 0 erased))
+
+;; --- durability bound -----------------------------------------------------
+
+(defn gopalan-distance-bound [k :i64 r :i64 g :i64] :i64
+  ;; d <= n - k - ceil(k/r) + 2 (Gopalan et al.). An UPPER bound on an
+  ;; optimal LRC's minimum distance — what this construction actually
+  ;; achieves is measured by `erasure.distance-test`, not assumed here.
+  (+ (- (- (shard-count k r g) k) (group-count k r)) 2))
+
+(defn max-tolerated-erasures [k :i64 r :i64 g :i64] :i64
+  (- (gopalan-distance-bound k r g) 1))

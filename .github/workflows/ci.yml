@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: JVM + CLJS + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache m2 / gitlibs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2
+            ~/.gitlibs
+          key: ${{ runner.os }}-clj-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-clj-
+
+      # The JVM run is the only one that can host the .kotoba parity gate
+      # (kotoba-lang/compiler is JVM-only), so it is not merely a compat gate
+      # here — it is where the port is held to equality with the reference.
+      - name: JVM tests (includes the .kotoba parity gate)
+        run: clojure -M:test
+
+      - name: CLJS tests (portable suite, real ClojureScript, node target)
+        run: clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs -m cljs.main --target node -m erasure.cljs-runner
+
+      - name: Lint (clj-kondo, errors fail)
+        run: clojure -M:lint

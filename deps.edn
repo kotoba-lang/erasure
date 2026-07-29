@@ -1,0 +1,30 @@
+{:paths ["src"]
+ :version "0.1.0"
+ ;; Zero runtime deps. The field, the matrix and the planner are arithmetic;
+ ;; the one function that touches bulk bytes (`erasure.gf/scale-add`) is
+ ;; explicitly the seam a host provider replaces, so nothing here needs a
+ ;; buffer library, a crypto library, or a runtime.
+ :deps {}
+ :aliases
+ {:test {:extra-paths ["test"]
+         ;; kotoba-lang/compiler is a TEST-ONLY dependency, for the parity gate
+         ;; that compiles kotoba/erasure_core.kotoba and requires it to return
+         ;; values identical to the .cljc reference (ADR-2607299200 section 5).
+         ;; The library itself has no runtime dependency on it.
+         :extra-deps {io.github.cognitect-labs/test-runner
+                      {:git/tag "v0.5.1" :git/sha "dfb30dd"}
+                      io.github.kotoba-lang/compiler
+                      {:git/url "https://github.com/kotoba-lang/compiler.git"
+                       :git/sha "45f0e5e3d633e3fc9d8003396f64422b7566e02b"}}
+         :main-opts ["-m" "cognitect.test-runner"]
+         :exec-fn cognitect.test-runner.api/test}
+  ;; The portable suite under ClojureScript. The parity gate is JVM-only (it
+  ;; needs the compiler), so this runs gf/codec/distance only — which is the
+  ;; whole library minus the gate.
+  ;;   clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
+  ;;     -m cljs.main --target node -m erasure.cljs-runner
+  :cljs {:extra-paths ["test"]
+         :extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}}
+  :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
+         :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"
+                     "--fail-level" "error"]}}}
