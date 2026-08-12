@@ -1,7 +1,7 @@
 # erasure
 
-Locally recoverable erasure codes over GF(2^8) — portable `.cljc` with a
-`.kotoba` port of the decision layer under an equality gate.
+Locally recoverable erasure codes over GF(2^8) — portable `.cljc` that RUNS a
+shipped `.kotoba` decision core for its layout, roles and generator matrix.
 
 Built for the `kura` storage network (ADR-2607299200), but it depends on
 nothing from it: this is the field, the generator matrix, the repair planner
@@ -81,12 +81,8 @@ mechanism*, the same line `aiueos` draws between Kotoba objects and its C
 kernel:
 
 - **Decisions** — the field, the generator matrix, group assignment, the
-  repair plan. Small values in, small values out. Ported to
-  `kotoba/erasure_core.kotoba` (`kotoba/pure` profile, no capabilities) and
-  held to *equality*, not plausibility, by `erasure.kotoba-parity-test`: it
-  compiles the port through `kotoba-lang/compiler`, runs it on the KIR
-  interpreter in the same JVM, and compares every one of the 416 generator
-  matrix entries plus the field, layout and planner cases.
+  repair plan. Small values in, small values out. Stated in
+  `kotoba/erasure_core.kotoba` (`kotoba/pure` profile, no capabilities).
 - **Mechanism** — `erasure.gf/scale-add`, the multiply-accumulate over a whole
   shard. A host provider is expected to replace this with SIMD or table-driven
   code and prove byte-equality against the definition here. Nothing above it
@@ -95,6 +91,50 @@ kernel:
 A shard is never a Kotoba value. Today's compile path caps a string leaf at
 64 KiB, and even when that lifts, pushing 4 MiB through the decision layer
 would be putting mechanism in the wrong place.
+
+### Is the core actually running? Yes, for most of it
+
+Per ADR-2608112100 a `.kotoba` core with a parity test is not migrated — a
+parity test binds two implementations, and what runs is still the `.cljc`. So
+the core is **compiled and shipped** as
+`resources/erasure/oracle/erasure-core.kir.edn`, and `erasure.kotoba-oracle`
+executes it. These now come from the artifact rather than from a second copy:
+
+| `.cljc` | export it runs |
+|---|---|
+| `lrc/layout` | `layout-admissible?`, `group-count`, `shard-count` |
+| `lrc/group-of`, `group-members`, `local-parity-of` | `group-of`, `group-start`, `group-end`, `local-parity-of` |
+| `lrc/role`, `global-parity-index`, `local-repair-reads-for` | `role-of`, `role-index-of`, `global-parity-index`, `local-repair-reads` |
+| `lrc/generator-row`, `matrix/cauchy-entry` | `generator-entry`, `cauchy-entry` |
+| `lrc/max-tolerated-erasures` | `max-tolerated-erasures` |
+
+Two things are deliberately NOT delegated, both measured on 2026-08-12:
+
+- **The GF layer** (`gf/add`/`mul`/`pow`/`inv`/`div`). An interpreted `gf-mul`
+  measured ~7,000x the host's table lookup and `gf-inv` ~250,000x, and these run
+  once per byte per coefficient — ~16.7 million for one k=16 encode of a 1 MiB
+  stripe. The core states the field; `erasure.kotoba-parity-test` holds the
+  host's tables to it.
+- **`lrc/locally-repairable`'s "exactly one of the cover is missing"**. Its
+  guest counterparts take a `[:set :i64]`, and a `[:set :i64]` does not work
+  under ClojureScript at this compiler/kir pin at all —
+  `kotoba.kir.value/compare-typed-values` sends `:i64` to `cljs.core/compare`,
+  which cannot compare two `js/BigInt`s, and even a one-element set traps
+  inside the guest. Delegating on the JVM only would put the repair rule in two
+  places with one unchecked. `erasure.set-boundary-test` pins the measurement
+  on both runtimes and goes red when a pin fixes it.
+
+Three gates keep this honest, and each has been seen to fail:
+`erasure.kotoba-parity-test` (the core answers as the `.cljc` does),
+`the-shipped-artifact-is-the-current-source-compiled` (the artifact IS that
+source, compiled), and `the-host-reads-the-artifact-rather-than-keeping-a-copy`
+(substitute a core that answers differently; the host follows).
+
+Regenerate the artifact after editing the `.kotoba`:
+
+```bash
+clojure -M:test:gen
+```
 
 ### Notes from porting
 
@@ -117,14 +157,25 @@ edit the `.kotoba`:
 ## Tests
 
 ```bash
-clojure -M:test                                    # JVM, includes the parity gate
+clojure -M:test                                    # JVM: parity, drift, delegation
 clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
   -m cljs.main --target node -m erasure.cljs-runner  # ClojureScript
 clojure -M:lint
 ```
 
-`kotoba-lang/compiler` is a **test-only** dependency, for the parity gate. The
-library has zero runtime dependencies.
+`kotoba-lang/compiler` is a **test-only** dependency — it produced the shipped
+artifact and never reaches a consumer. `kotoba-lang/kotoba-kir` is the library's
+one runtime dependency, pinned to the kir that compiler declares; they are a
+matched pair and must move together.
+
+**ClojureScript hosts must register the KIR.** There is no classpath to read
+the artifact from, so a cljs host has to call
+`erasure.kotoba-oracle/register-kir!` before building a layout; without it,
+`erasure.lrc` throws. `test/erasure/cljs_kir.cljc` is what a node host does
+(read the file with `fs`, register at load time); a browser host would inline
+the artifact at build time or fetch it. This is a real narrowing of what this
+library used to be — it used to load on any cljs host with nothing but its own
+source — and it is the price of the rules having one home.
 
 ## Field
 
