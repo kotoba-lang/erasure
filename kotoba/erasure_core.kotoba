@@ -1,10 +1,15 @@
 (ns erasure-core
-  (:export [gf-add gf-mul gf-pow gf-inv
+  (:export [gf-add gf-mul gf-pow gf-inv gf-div
+            layout-admissible?
             group-count shard-count group-of local-parity-of
-            group-start group-end group-size role-of
+            group-start group-end group-size role-of role-index-of
+            global-parity-index
             cauchy-entry generator-entry
             data-missing-from cover-missing locally-repairable?
+            erased-in-data-from local-repair-target
             local-repair-reads repairable-group-from first-repairable-group
+            drain-steps-from local-drain-steps drain-residual
+            fully-local-repairable?
             gopalan-distance-bound max-tolerated-erasures]))
 
 ;; A `.kotoba` port of the DECISION layer of this library, per ADR-2607299200
@@ -67,7 +72,47 @@
     0
     (gf-pow a 254)))
 
+(defn gf-div [a :i64 b :i64] :i64
+  ;; `erasure.gf/div`, exactly: multiply by the inverse.
+  ;;
+  ;; NOTE ON THE .cljc's PRECONDITION. `erasure.gf/div` documents "`b` must be
+  ;; non-zero" but does not enforce it: `inv` returns 0 for 0 rather than
+  ;; throwing, so `(div a 0)` is silently 0 — a wrong answer wearing the shape
+  ;; of a right one. This port mirrors that, because a parity gate compares
+  ;; behaviour and cannot both mirror and correct. Recorded, not fixed: the
+  ;; fix is a signature change on the .cljc side and belongs to whoever owns
+  ;; its callers, not to this slice.
+  ;;
+  ;; A `[:result :i64 :string]` refusal was measured to compile and run here,
+  ;; but it costs this layer something specific: `result-ok-of` /
+  ;; `result-err-of` are not admitted by `kotoba.kir`'s
+  ;; `only-native-word-typed-features?` (measured 2026-08-12, with an :i64
+  ;; error payload as well as a :string one), so a Result-returning `gf-div`
+  ;; would take the whole GF layer out of native-AOT admission. That is a
+  ;; trade to make deliberately, not a detail to slip into a port.
+  (gf-mul a (gf-inv b)))
+
 ;; --- layout ---------------------------------------------------------------
+
+(defn layout-admissible? [k :i64 r :i64 g :i64] :bool
+  ;; The three preconditions `erasure.lrc/layout` states as `assert`, as a
+  ;; decision instead of a host exception: k and g positive, locality at least
+  ;; 2 (below that a "local parity" is a duplicate, not a code), and k + g
+  ;; within 256 so the Cauchy construction has distinct GF(2^8) elements to
+  ;; draw x_i and y_j from.
+  ;;
+  ;; The .cljc throws an AssertionError, which is exactly the host-specific
+  ;; signalling this language has no `throw` for. The predicate crosses; the
+  ;; signalling stays where it can name a host exception type.
+  (if (< k 1)
+    false
+    (if (< g 1)
+      false
+      (if (< r 2)
+        false
+        (if (< 256 (+ k g))
+          false
+          true)))))
 
 (defn group-count [k :i64 r :i64] :i64
   (quot (+ k (- r 1)) r))
@@ -105,6 +150,41 @@
         (if (< i (shard-count k r g))
           2
           3)))))
+
+(defn role-index-of [k :i64 r :i64 g :i64 i :i64] :i64
+  ;; The OTHER half of `erasure.lrc/role`. That function returns a map with
+  ;; two things in it — a `:kind` and a `:group`/`:index` — and only the kind
+  ;; had crossed. This is the number: the local group for a data shard, the
+  ;; group it covers for a local parity, the Cauchy row for a global parity,
+  ;; and -1 out of range.
+  ;;
+  ;; -1 rather than an option for the same reason `role-of` is an i64 tag:
+  ;; the shard indices being classified are all non-negative, so -1 is a value
+  ;; the codomain cannot otherwise produce, and it compares across the two
+  ;; runtimes without marshalling.
+  (let [role (role-of k r g i)]
+    (if (= role 0)
+      (group-of i r)
+      (if (= role 1)
+        (- i k)
+        (if (= role 2)
+          (- i (+ k (group-count k r)))
+          -1)))))
+
+(defn global-parity-index [k :i64 r :i64 i :i64] :i64
+  ;; `erasure.lrc/global-parity-index`, with its nil as -1.
+  ;;
+  ;; NOTE: this is deliberately NOT `role-index-of` restricted to globals. The
+  ;; .cljc checks only the lower edge — `(when (>= i (+ k l)) (- i k l))` — so
+  ;; for an index past the last shard it answers with a positive row number
+  ;; for a Cauchy row that does not exist, rather than nil. Mirrored as-is so
+  ;; the gate compares behaviour; `role-index-of` is the bounded one, and it
+  ;; needs `g` to be bounded, which is precisely what the .cljc's signature
+  ;; does not take. Recorded, not fixed.
+  (let [base (+ k (group-count k r))]
+    (if (< i base)
+      -1
+      (- i base))))
 
 ;; --- generator matrix -----------------------------------------------------
 
@@ -180,6 +260,104 @@
   ;; not cosmetic: it is what makes the plan comparable to the .cljc side for
   ;; equality instead of for plausibility.
   (repairable-group-from k r 0 erased))
+
+(defn erased-in-data-from [end :i64 j :i64 erased [:set :i64]] :i64
+  ;; Lowest erased data index in [j, end), or -1. The counting twin of this
+  ;; scan is `data-missing-from`; this one reports WHICH.
+  (if (< j end)
+    (if (typed-set-contains [:set :i64] erased j)
+      j
+      (erased-in-data-from end (+ j 1) erased))
+    -1))
+
+(defn local-repair-target [k :i64 r :i64 q :i64 erased [:set :i64]] :i64
+  ;; Which shard a local repair of group q rebuilds, or -1 when the group
+  ;; cannot finish on its own.
+  ;;
+  ;; The port could already decide THAT a group is locally repairable and
+  ;; WHICH group goes first; it could not say what comes out. That is the
+  ;; output of step 1 of `erasure.lrc/recovery-plan` — `[target reads]` — and
+  ;; without it the drain below cannot be expressed at all.
+  ;;
+  ;; The cover is the group's data shards plus its local parity, and exactly
+  ;; one of them is erased when `locally-repairable?` holds, so if no data
+  ;; member is erased the local parity is the one.
+  (if (locally-repairable? k r q erased)
+    (let [d (erased-in-data-from (group-end k r q) (group-start q r) erased)]
+      (if (< d 0)
+        (local-parity-of k q)
+        d))
+    -1))
+
+;; --- the local drain ------------------------------------------------------
+;; Step 1 of `erasure.lrc/recovery-plan`: drain every group that is missing
+;; exactly one of its cover, to a fixpoint. This is the whole 99% path — the
+;; single-node loss that costs r reads and no multiplies — so it is a
+;; decision, not mechanism.
+;;
+;; What stays host-side is the STEP LIST. A step carries a variable-length
+;; `:reads` vector, and a vector of vectors is not a value this compile path
+;; has. The counts below are what the plan's shape reduces to once the read
+;; lists are dropped, and they pin the same control flow: how many local
+;; repairs happen, what is left when they stop, and whether that is nothing.
+;;
+;; NOTE ON THE FIXPOINT, recorded not fixed. `recovery-plan` says it repeats
+;; "because rebuilding a group's data shard can make that group's local parity
+;; rebuildable in the next round". For this layout that cannot happen: group
+;; q's cover is its data shards plus shard k+q, and those covers are pairwise
+;; disjoint, so no repair ever changes another group's missing count and a
+;; group missing two of its own cover is never rescued by a further round. The
+;; loop is correct, just never iterates more than once per group.
+;; `erasure.kotoba-parity-test/drain-covers-disjoint-groups-in-one-pass`
+;; asserts both halves of that. The port mirrors the loop rather than the
+;; shortcut it collapses to, so that if the covers ever overlap — a second
+;; parity per group, say — this side is already right.
+
+(defn drain-steps-from [k :i64 r :i64 erased [:set :i64] steps :i64] :i64
+  ;; TERMINATION: when `first-repairable-group` answers q >= 0,
+  ;; `local-repair-target` returns a member of `erased` (the single erased
+  ;; shard in q's cover), so the disj strictly shrinks the set every round.
+  ;; The .cljc carries a defensive `guard > n` counter for the same property;
+  ;; here the argument is structural and there is no fifth parameter to spend
+  ;; on a budget anyway — `max-parameters` is 5 and this uses four.
+  ;;
+  ;; That argument is load-bearing and was checked, not assumed: breaking
+  ;; `local-repair-target` so it names a shard NOT in `erased` makes this
+  ;; diverge, and the gate observed it as a `fuel-exhausted` trap
+  ;; (`ir/execute` charges a default budget of 512) rather than a wrong
+  ;; answer. If the target ever stops being a member, this loop stops
+  ;; terminating.
+  (let [q (first-repairable-group k r erased)]
+    (if (< q 0)
+      steps
+      (drain-steps-from k r
+                        (typed-set-disj [:set :i64] erased
+                                        (local-repair-target k r q erased))
+                        (+ steps 1)))))
+
+(defn local-drain-steps [k :i64 r :i64 erased [:set :i64]] :i64
+  ;; How many local repairs the planner performs before it has to consider a
+  ;; global solve — i.e. the number of leading `:local` steps in the .cljc
+  ;; plan.
+  (drain-steps-from k r erased 0))
+
+(defn drain-residual [k :i64 r :i64 erased [:set :i64]] :i64
+  ;; How many shards are still missing once the drain reaches its fixpoint.
+  ;; Zero means the pattern was repaired entirely by xors, with no multiplies
+  ;; and no global solve.
+  (let [q (first-repairable-group k r erased)]
+    (if (< q 0)
+      (typed-set-count [:set :i64] erased)
+      (drain-residual k r
+                      (typed-set-disj [:set :i64] erased
+                                      (local-repair-target k r q erased))))))
+
+(defn fully-local-repairable? [k :i64 r :i64 erased [:set :i64]] :bool
+  ;; The question the code is built to answer cheaply: can this loss be undone
+  ;; without reading k shards and without a single field multiply.
+  (if (zero? (drain-residual k r erased))
+    true
+    false))
 
 ;; --- durability bound -----------------------------------------------------
 
