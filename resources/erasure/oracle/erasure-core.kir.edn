@@ -1,0 +1,361 @@
+{:format :kotoba.kir/v4,
+ :signature nil,
+ :functions
+ [{:name gf-add,
+   :params [a b],
+   :result :i64,
+   :effects #{},
+   :body (bit-xor a b),
+   :param-types [:i64 :i64]}
+  {:name gf-mul,
+   :params [a b],
+   :result :i64,
+   :effects #{},
+   :body (__kotoba_loop_1 (bit-and a 255) (bit-and b 255) 0),
+   :param-types [:i64 :i64]}
+  {:name __kotoba_loop_1,
+   :params [x y acc],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (= y 0)
+    acc
+    (__kotoba_loop_1
+     (let
+      [doubled (i64-shift-left x 1)]
+      (if (< doubled 256) doubled (bit-xor doubled 285)))
+     (quot y 2)
+     (if (= 1 (bit-and y 1)) (bit-xor acc x) acc))),
+   :param-types [:i64 :i64 :i64]}
+  {:name gf-pow,
+   :params [a e],
+   :result :i64,
+   :effects #{},
+   :body (__kotoba_loop_2 (bit-and a 255) e 1),
+   :param-types [:i64 :i64]}
+  {:name __kotoba_loop_2,
+   :params [base exp acc],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (= exp 0)
+    acc
+    (__kotoba_loop_2
+     (gf-mul base base)
+     (quot exp 2)
+     (if (= 1 (bit-and exp 1)) (gf-mul acc base) acc))),
+   :param-types [:i64 :i64 :i64]}
+  {:name gf-inv,
+   :params [a],
+   :result :i64,
+   :effects #{},
+   :body (if (= a 0) 0 (gf-pow a 254)),
+   :param-types [:i64]}
+  {:name gf-div,
+   :params [a b],
+   :result :i64,
+   :effects #{},
+   :body (gf-mul a (gf-inv b)),
+   :param-types [:i64 :i64]}
+  {:name layout-admissible?,
+   :params [k r g],
+   :result :bool,
+   :effects #{},
+   :body
+   (if
+    (< k 1)
+    false
+    (if
+     (< g 1)
+     false
+     (if (< r 2) false (if (< 256 (+ k g)) false true)))),
+   :param-types [:i64 :i64 :i64]}
+  {:name group-count,
+   :params [k r],
+   :result :i64,
+   :effects #{},
+   :body (quot (+ k (- r 1)) r),
+   :param-types [:i64 :i64]}
+  {:name shard-count,
+   :params [k r g],
+   :result :i64,
+   :effects #{},
+   :body (+ k (+ (group-count k r) g)),
+   :param-types [:i64 :i64 :i64]}
+  {:name group-of,
+   :params [i r],
+   :result :i64,
+   :effects #{},
+   :body (quot i r),
+   :param-types [:i64 :i64]}
+  {:name local-parity-of,
+   :params [k q],
+   :result :i64,
+   :effects #{},
+   :body (+ k q),
+   :param-types [:i64 :i64]}
+  {:name group-start,
+   :params [q r],
+   :result :i64,
+   :effects #{},
+   :body (* q r),
+   :param-types [:i64 :i64]}
+  {:name group-end,
+   :params [k r q],
+   :result :i64,
+   :effects #{},
+   :body (let [e (* (+ q 1) r)] (if (< k e) k e)),
+   :param-types [:i64 :i64 :i64]}
+  {:name group-size,
+   :params [k r q],
+   :result :i64,
+   :effects #{},
+   :body (- (group-end k r q) (group-start q r)),
+   :param-types [:i64 :i64 :i64]}
+  {:name role-of,
+   :params [k r g i],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (< i 0)
+    3
+    (if
+     (< i k)
+     0
+     (if
+      (< i (+ k (group-count k r)))
+      1
+      (if (< i (shard-count k r g)) 2 3)))),
+   :param-types [:i64 :i64 :i64 :i64]}
+  {:name role-index-of,
+   :params [k r g i],
+   :result :i64,
+   :effects #{},
+   :body
+   (let
+    [role (role-of k r g i)]
+    (if
+     (= role 0)
+     (group-of i r)
+     (if
+      (= role 1)
+      (- i k)
+      (if (= role 2) (- i (+ k (group-count k r))) -1)))),
+   :param-types [:i64 :i64 :i64 :i64]}
+  {:name global-parity-index,
+   :params [k r i],
+   :result :i64,
+   :effects #{},
+   :body
+   (let [base (+ k (group-count k r))] (if (< i base) -1 (- i base))),
+   :param-types [:i64 :i64 :i64]}
+  {:name cauchy-entry,
+   :params [k i j],
+   :result :i64,
+   :effects #{},
+   :body (gf-inv (bit-xor (+ k i) j)),
+   :param-types [:i64 :i64 :i64]}
+  {:name generator-entry,
+   :params [k r g i j],
+   :result :i64,
+   :effects #{},
+   :body
+   (let
+    [role (role-of k r g i)]
+    (if
+     (= role 0)
+     (if (= i j) 1 0)
+     (if
+      (= role 1)
+      (if (= (group-of j r) (- i k)) 1 0)
+      (if
+       (= role 2)
+       (cauchy-entry k (- i (+ k (group-count k r))) j)
+       0)))),
+   :param-types [:i64 :i64 :i64 :i64 :i64]}
+  {:name data-missing-from,
+   :params [end j erased acc],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (< j end)
+    (data-missing-from
+     end
+     (+ j 1)
+     erased
+     (if (typed-set-contains [:set :i64] erased j) (+ acc 1) acc))
+    acc),
+   :param-types [:i64 :i64 [:set :i64] :i64]}
+  {:name cover-missing,
+   :params [k r q erased],
+   :result :i64,
+   :effects #{},
+   :body
+   (+
+    (data-missing-from (group-end k r q) (group-start q r) erased 0)
+    (if
+     (typed-set-contains [:set :i64] erased (local-parity-of k q))
+     1
+     0)),
+   :param-types [:i64 :i64 :i64 [:set :i64]]}
+  {:name locally-repairable?,
+   :params [k r q erased],
+   :result :bool,
+   :effects #{},
+   :body (if (= 1 (cover-missing k r q erased)) true false),
+   :param-types [:i64 :i64 :i64 [:set :i64]]}
+  {:name local-repair-reads,
+   :params [k r q],
+   :result :i64,
+   :effects #{},
+   :body (group-size k r q),
+   :param-types [:i64 :i64 :i64]}
+  {:name repairable-group-from,
+   :params [k r q erased],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (< q (group-count k r))
+    (if
+     (locally-repairable? k r q erased)
+     q
+     (repairable-group-from k r (+ q 1) erased))
+    -1),
+   :param-types [:i64 :i64 :i64 [:set :i64]]}
+  {:name first-repairable-group,
+   :params [k r erased],
+   :result :i64,
+   :effects #{},
+   :body (repairable-group-from k r 0 erased),
+   :param-types [:i64 :i64 [:set :i64]]}
+  {:name erased-in-data-from,
+   :params [end j erased],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (< j end)
+    (if
+     (typed-set-contains [:set :i64] erased j)
+     j
+     (erased-in-data-from end (+ j 1) erased))
+    -1),
+   :param-types [:i64 :i64 [:set :i64]]}
+  {:name local-repair-target,
+   :params [k r q erased],
+   :result :i64,
+   :effects #{},
+   :body
+   (if
+    (locally-repairable? k r q erased)
+    (let
+     [d
+      (erased-in-data-from (group-end k r q) (group-start q r) erased)]
+     (if (< d 0) (local-parity-of k q) d))
+    -1),
+   :param-types [:i64 :i64 :i64 [:set :i64]]}
+  {:name drain-steps-from,
+   :params [k r erased steps],
+   :result :i64,
+   :effects #{},
+   :body
+   (let
+    [q (first-repairable-group k r erased)]
+    (if
+     (< q 0)
+     steps
+     (drain-steps-from
+      k
+      r
+      (typed-set-disj
+       [:set :i64]
+       erased
+       (local-repair-target k r q erased))
+      (+ steps 1)))),
+   :param-types [:i64 :i64 [:set :i64] :i64]}
+  {:name local-drain-steps,
+   :params [k r erased],
+   :result :i64,
+   :effects #{},
+   :body (drain-steps-from k r erased 0),
+   :param-types [:i64 :i64 [:set :i64]]}
+  {:name drain-residual,
+   :params [k r erased],
+   :result :i64,
+   :effects #{},
+   :body
+   (let
+    [q (first-repairable-group k r erased)]
+    (if
+     (< q 0)
+     (typed-set-count [:set :i64] erased)
+     (drain-residual
+      k
+      r
+      (typed-set-disj
+       [:set :i64]
+       erased
+       (local-repair-target k r q erased))))),
+   :param-types [:i64 :i64 [:set :i64]]}
+  {:name fully-local-repairable?,
+   :params [k r erased],
+   :result :bool,
+   :effects #{},
+   :body (if (= (drain-residual k r erased) 0) true false),
+   :param-types [:i64 :i64 [:set :i64]]}
+  {:name gopalan-distance-bound,
+   :params [k r g],
+   :result :i64,
+   :effects #{},
+   :body (+ (- (- (shard-count k r g) k) (group-count k r)) 2),
+   :param-types [:i64 :i64 :i64]}
+  {:name max-tolerated-erasures,
+   :params [k r g],
+   :result :i64,
+   :effects #{},
+   :body (- (gopalan-distance-bound k r g) 1),
+   :param-types [:i64 :i64 :i64]}],
+ :oracle-value nil,
+ :schema-identities nil,
+ :exports
+ [gf-add
+  gf-mul
+  gf-pow
+  gf-inv
+  gf-div
+  layout-admissible?
+  group-count
+  shard-count
+  group-of
+  local-parity-of
+  group-start
+  group-end
+  group-size
+  role-of
+  role-index-of
+  global-parity-index
+  cauchy-entry
+  generator-entry
+  data-missing-from
+  cover-missing
+  locally-repairable?
+  erased-in-data-from
+  local-repair-target
+  local-repair-reads
+  repairable-group-from
+  first-repairable-group
+  drain-steps-from
+  local-drain-steps
+  drain-residual
+  fully-local-repairable?
+  gopalan-distance-bound
+  max-tolerated-erasures],
+ :schemas nil,
+ :effects #{},
+ :blocks [],
+ :entry nil}

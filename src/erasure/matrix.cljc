@@ -20,13 +20,26 @@
 
   Element sets stay disjoint because `x_i = k + i >= k > j = y_j`, so
   `x_i + y_j` (xor) is never zero. The construction is valid while
-  `k + g <= 256`; `erasure.lrc/layout` enforces that."
-  (:require [erasure.gf :as gf]))
+  `k + g <= 256`; `erasure.lrc/layout` enforces that.
+
+  **Which half of this namespace decides.** `cauchy-entry` is the construction
+  — it says what the matrix IS — and it no longer computes here: it asks
+  `kotoba/erasure_core.kotoba` through `erasure.kotoba-oracle`. Everything
+  below it (`invert`, `apply-row`, `independent-rows`) is linear algebra over
+  shard bytes and stays, for the reason recorded in the oracle's docstring:
+  those are the loops a host provider replaces, and putting an interpreter
+  inside them would be putting mechanism in the wrong place."
+  (:require [erasure.gf :as gf]
+            [erasure.kotoba-oracle :as oracle]))
 
 (defn cauchy-entry
-  "Coefficient applied to data shard `j` when forming global parity `i`."
+  "Coefficient applied to data shard `j` when forming global parity `i`.
+
+  `1/(x_i + y_j)` with `x_i = k+i`, `y_j = j` — stated once, in
+  `kotoba/erasure_core.kotoba`, and run from there. The `k` x `g` distinct
+  coordinates of a layout are asked once each; see `erasure.kotoba-oracle/decide`."
   [k i j]
-  (gf/inv (bit-xor (+ k i) j)))
+  (oracle/i64-value (oracle/decide :erasure-core 'cauchy-entry [k i j])))
 
 (defn cauchy-rows
   "The `g` x `k` global-parity coefficient matrix."
