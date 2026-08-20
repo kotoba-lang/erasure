@@ -17,7 +17,7 @@
  ;; measurement that draws that line is in `erasure.kotoba-oracle`'s docstring.
  ;;
  ;; Pinned to the kir the pinned compiler emits for
- ;; (`io.github.kotoba-lang/compiler` 45f0e5e3 declares kotoba-kir fa2fbb58).
+ ;; (`io.github.kotoba-lang/amu` 45f0e5e3 declares kotoba-kir fa2fbb58).
  ;; They have to match: KIR is a versioned document, and an interpreter reading
  ;; a shape its emitter did not write is exactly the failure the artifact was
  ;; supposed to remove. Measured 2026-08-12 on a sibling slice: crossing that
@@ -27,7 +27,7 @@
          :git/sha "fa2fbb5839c97b81fb1f6cb61787332bb55f2b9b"}}
  :aliases
  {:test {:extra-paths ["test"]
-         ;; kotoba-lang/compiler is a TEST-ONLY dependency, for the parity gate
+         ;; kotoba-lang/amu is a TEST-ONLY dependency, for the parity gate
          ;; that compiles kotoba/erasure_core.kotoba and requires it to return
          ;; values identical to the .cljc reference (ADR-2607299200 section 5),
          ;; for the drift gate that requires the shipped artifact to BE that
@@ -35,8 +35,8 @@
          ;; The library itself has no runtime dependency on it.
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}
-                      io.github.kotoba-lang/compiler
-                      {:git/url "https://github.com/kotoba-lang/compiler.git"
+                      io.github.kotoba-lang/amu
+                      {:git/url "https://github.com/kotoba-lang/amu.git"
                        :git/sha "45f0e5e3d633e3fc9d8003396f64422b7566e02b"}}
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
