@@ -3,7 +3,10 @@
   --target node) — the fleet runtime priority puts cljs ahead of the JVM.
 
     clojure -Sdeps '{:paths [\"src\" \"test\"]}' -M:cljs \\
-      -m cljs.main --target node -m erasure.cljs-runner
+      -m cljs.main --target node --output-dir target/node-out \\
+      --output-to target/tests.cjs -c erasure.cljs-runner
+    echo '{\"type\":\"commonjs\"}' > target/node-out/package.json
+    node target/tests.cjs
 
   `erasure.kotoba-parity-test`, `erasure.kotoba-oracle-test` and
   `erasure.kotoba-oracle-gen` are deliberately absent: they need
@@ -47,3 +50,9 @@
 (defn -main []
   (run-tests 'erasure.gf-test 'erasure.codec-test 'erasure.distance-test
              'erasure.set-boundary-test))
+
+;; The compiled node bundle runs `cljs.nodejscli`, which calls whatever
+;; `*main-cli-fn*` names. Without this the bundle loads every namespace,
+;; runs no test, and exits 0 -- measured 2026-08-25, and indistinguishable
+;; from a clean run in both the output and the exit code.
+#?(:cljs (set! *main-cli-fn* -main))
