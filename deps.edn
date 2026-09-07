@@ -22,8 +22,8 @@
  ;; a shape its emitter did not write is exactly the failure the artifact was
  ;; supposed to remove. Measured 2026-08-12 on a sibling slice: crossing that
  ;; pair (this compiler with a later interpreter) gives 1 failure and 32 errors.
- :deps {io.github.kotoba-lang/kotoba-kir
-        {:git/url "https://github.com/kotoba-lang/kotoba-kir.git"
+ :deps {io.github.kotoba-lang/osaho
+        {:git/url "https://github.com/kotoba-lang/osaho.git"
          :git/sha "fa2fbb5839c97b81fb1f6cb61787332bb55f2b9b"}}
  :aliases
  {:test {:extra-paths ["test"]
@@ -57,8 +57,8 @@
   ;;     -m cljs.main --target node -m erasure.cljs-runner
   :cljs {:extra-paths ["test"]
          :extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}
-                      io.github.kotoba-lang/kotoba-kir
-                      {:git/url "https://github.com/kotoba-lang/kotoba-kir.git"
+                      io.github.kotoba-lang/osaho
+                      {:git/url "https://github.com/kotoba-lang/osaho.git"
                        :git/sha "fa2fbb5839c97b81fb1f6cb61787332bb55f2b9b"}}}
   :lint {:replace-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"
