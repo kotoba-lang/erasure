@@ -14,7 +14,7 @@
   exists so the decision layer can move to the verified language without
   anyone having to trust that the two agree."
   (:require [clojure.set :as set]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [erasure.gf :as gf]
             [erasure.lrc :as lrc]

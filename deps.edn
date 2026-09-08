@@ -22,7 +22,12 @@
  ;; a shape its emitter did not write is exactly the failure the artifact was
  ;; supposed to remove. Measured 2026-08-12 on a sibling slice: crossing that
  ;; pair (this compiler with a later interpreter) gives 1 failure and 32 errors.
- :deps {io.github.kotoba-lang/osaho
+ :deps {
+        ;; kotoba.lang.text, not clojure.string. Pinned as an explicit floor:
+        ;; tools.deps takes the NEWEST sha it is shown, so without a floor here
+        ;; this repo silently rides whatever a sibling happens to name.
+        io.github.kotoba-lang/text {:git/sha "73bdb13ae7a3d004b44bca08be03a3191157a38f"}
+       io.github.kotoba-lang/osaho
         {:git/url "https://github.com/kotoba-lang/osaho.git"
          :git/sha "fa2fbb5839c97b81fb1f6cb61787332bb55f2b9b"}}
  :aliases
