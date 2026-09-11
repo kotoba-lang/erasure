@@ -39,7 +39,7 @@
   make it differ from a fresh compile for a reason that is not drift, and a
   gate that fails constantly is worse than no gate because it gets ignored.
   MEASURED 2026-08-12 at this compiler pin: this core produces NONE, and two
-  `clojure -M:test:gen` runs in two JVMs wrote byte-identical files. So the
+  `kbb -M:test:gen` runs in two JVMs wrote byte-identical files. So the
   drift gate below compares whole values, which is the strongest form, and
   `the-artifact-is-jvm-independent` is what keeps that entitlement honest.
 
@@ -58,7 +58,7 @@
   Not used by the gate — used by its FAILURE MESSAGE, to tell the two reasons
   a comparison can fail apart: a stale artifact, or a core that has grown a
   construct the emitter gensyms for. The second needs this normalisation
-  switched on, the first needs `clojure -M:test:gen`, and the two look
+  switched on, the first needs `kbb -M:test:gen`, and the two look
   identical without it."
   [kir]
   (let [seen (volatile! {})]
@@ -88,7 +88,7 @@
               " emitter gensyms for. This gate must then compare"
               " `renumber-gensyms` of both, and `the-artifact-is-jvm-independent`"
               " is the one to change first.")
-         (str " is stale — run `clojure -M:test:gen`. First divergence: "
+         (str " is stale — run `kbb -M:test:gen`. First divergence: "
               (first-difference fresh shipped)))))
 
 (deftest the-shipped-artifact-is-the-current-source-compiled

@@ -2,7 +2,7 @@
   "Run the portable suite under a real ClojureScript host (cljs.main
   --target node) — the fleet runtime priority puts cljs ahead of the JVM.
 
-    clojure -Sdeps '{:paths [\"src\" \"test\"]}' -M:cljs \\
+    kbb -Sdeps '{:paths [\"src\" \"test\"]}' -M:cljs \\
       -m cljs.main --target node --output-dir target/node-out \\
       --output-to target/tests.cjs -c erasure.cljs-runner
     echo '{\"type\":\"commonjs\"}' > target/node-out/package.json

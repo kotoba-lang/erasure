@@ -133,7 +133,7 @@ source, compiled), and `the-host-reads-the-artifact-rather-than-keeping-a-copy`
 Regenerate the artifact after editing the `.kotoba`:
 
 ```bash
-clojure -M:test:gen
+kbb -M:test:gen
 ```
 
 ### Notes from porting
@@ -157,10 +157,10 @@ edit the `.kotoba`:
 ## Tests
 
 ```bash
-clojure -M:test                                    # JVM: parity, drift, delegation
-clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
+kbb -M:test                                    # JVM: parity, drift, delegation
+kbb -Sdeps '{:paths ["src" "test"]}' -M:cljs \
   -m cljs.main --target node -m erasure.cljs-runner  # ClojureScript
-clojure -M:lint
+kbb -M:lint
 ```
 
 `kotoba-lang/compiler` is a **test-only** dependency — it produced the shipped

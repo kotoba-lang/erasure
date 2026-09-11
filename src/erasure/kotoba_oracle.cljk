@@ -139,7 +139,7 @@
      (let [path (resource-path id)]
        (if-let [url (io/resource path)]
          (edn/read-string (slurp url))
-         (throw (ex-info "shipped decision core is missing — run `clojure -M:test:gen`"
+         (throw (ex-info "shipped decision core is missing — run `kbb -M:test:gen`"
                          {:oracle id :path path}))))
      :cljs
      (throw (ex-info "no classpath on this runtime — register-kir! first"
