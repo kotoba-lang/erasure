@@ -96,7 +96,7 @@
   There is no classpath to read a resource from, so `register-kir!` is the only
   way in and `kir` throws without it. That is a real narrowing of what this
   library used to do on that runtime; see the boundary note on `erasure.lrc`.
-  `test/erasure/cljs_runner.cljc` does it with node's `fs`, which is what a
+  `test/erasure/cljs_runner.cljk` does it with node's `fs`, which is what a
   node host would do."
   (:require [kotoba.kir :as kir]
             ;; Both only exist on the branch that has a classpath to read from.
