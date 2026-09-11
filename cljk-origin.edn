@@ -1,0 +1,19 @@
+{:format :kotoba.cljk-origin/v1
+ :renamed-on "2026-09-11"
+ :decision "adr-2609111500-cljk-rename-all-clojure-source (com-junkawasaki/root 90-docs/adr; owner instruction 2026-09-11)"
+ :rule "value = the extension the file had before the rename. A path ending in .clj.cljk or .cljs.cljk kept it in the name because both platform files existed (or the plain target was taken)."
+ :origins
+ {"src/erasure/codec.cljk" ".cljc"
+  "src/erasure/gf.cljk" ".cljc"
+  "src/erasure/kotoba_oracle.cljk" ".cljc"
+  "src/erasure/lrc.cljk" ".cljc"
+  "src/erasure/matrix.cljk" ".cljc"
+  "test/erasure/cljs_kir.cljk" ".cljc"
+  "test/erasure/cljs_runner.cljk" ".cljc"
+  "test/erasure/codec_test.cljk" ".cljc"
+  "test/erasure/distance_test.cljk" ".cljc"
+  "test/erasure/gf_test.cljk" ".cljc"
+  "test/erasure/kotoba_oracle_gen.cljk" ".clj"
+  "test/erasure/kotoba_oracle_test.cljk" ".clj"
+  "test/erasure/kotoba_parity_test.cljk" ".clj"
+  "test/erasure/set_boundary_test.cljk" ".cljc"}}

@@ -171,7 +171,7 @@ matched pair and must move together.
 **ClojureScript hosts must register the KIR.** There is no classpath to read
 the artifact from, so a cljs host has to call
 `erasure.kotoba-oracle/register-kir!` before building a layout; without it,
-`erasure.lrc` throws. `test/erasure/cljs_kir.cljc` is what a node host does
+`erasure.lrc` throws. `test/erasure/cljs_kir.cljk` is what a node host does
 (read the file with `fs`, register at load time); a browser host would inline
 the artifact at build time or fetch it. This is a real narrowing of what this
 library used to be — it used to load on any cljs host with nothing but its own
