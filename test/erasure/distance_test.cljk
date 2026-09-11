@@ -20,7 +20,7 @@
   it. The smallest failures are 8-shard patterns that wipe two whole local
   groups' worth of data (e.g. #{0..7}), which is the shape the bound predicts.
 
-  The exhaustive t=7 sweep takes minutes, so it is not run on every `clj -M:test`.
+  The exhaustive t=7 sweep takes minutes, so it is not run on every `kbb -M:test`.
   What runs here is: an exhaustive search on a small configuration where it is
   cheap, a bounded random sample at t=7 on the production configuration, and
   the specific 8-shard witnesses that must fail. `slow-distance-sweep` below

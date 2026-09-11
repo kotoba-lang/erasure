@@ -48,7 +48,7 @@
   ;; Regenerate the shipped decision-core KIR. Combine with :test, which is
   ;; where the compiler lives:
   ;;
-  ;;   clojure -M:test:gen
+  ;;   kbb -M:test:gen
   ;;
   ;; The namespace lives under test/ so that the compiler cannot be reached
   ;; from anything a consumer loads.
@@ -58,7 +58,7 @@
   ;; only — which is the whole library minus the gates. The runner registers the
   ;; shipped KIR through node's `fs` first: there is no classpath on this
   ;; runtime, so `erasure.kotoba-oracle` cannot read the artifact itself.
-  ;;   clojure -Sdeps '{:paths ["src" "test"]}' -M:cljs \
+  ;;   kbb -Sdeps '{:paths ["src" "test"]}' -M:cljs \
   ;;     -m cljs.main --target node -m erasure.cljs-runner
   :cljs {:extra-paths ["test"]
          :extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}
