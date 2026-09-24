@@ -13,7 +13,7 @@
   runtime dependency on it — the `.cljc` is what consumers load, and the port
   exists so the decision layer can move to the verified language without
   anyone having to trust that the two agree."
-  (:require [clojure.set :as set]
+  (:require [kotoba.lang.coll :as set]
             [kotoba.lang.text :as str]
             [kotoba.test :refer [deftest is testing]]
             [erasure.gf :as gf]

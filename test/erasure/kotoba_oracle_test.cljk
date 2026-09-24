@@ -21,7 +21,7 @@
             [clojure.java.io :as io]
             [kotoba.lang.text :as str]
             [kotoba.test :refer [deftest is testing]]
-            [clojure.walk :as walk]
+            [kotoba.lang.coll :as walk]
             [erasure.codec :as codec]
             [erasure.gf :as gf]
             [erasure.kotoba-oracle :as oracle]
