@@ -20,7 +20,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [kotoba.lang.text :as str]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [clojure.walk :as walk]
             [erasure.codec :as codec]
             [erasure.gf :as gf]
