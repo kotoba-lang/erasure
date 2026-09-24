@@ -63,7 +63,7 @@
   before a layout can be built at all. That is a real narrowing of what this
   library used to do on that runtime, and the price of the rules having one
   home. `test/erasure/cljs_runner.cljk` shows what a node host does about it."
-  (:require [clojure.set :as set]
+  (:require [kotoba.lang.coll :as set]
             [erasure.kotoba-oracle :as oracle]
             [erasure.matrix :as matrix]))
 

@@ -23,6 +23,20 @@
  ;; supposed to remove. Measured 2026-08-12 on a sibling slice: crossing that
  ;; pair (this compiler with a later interpreter) gives 1 failure and 32 errors.
  :deps {
+        ;; kotoba.io replaced clojure.java.io / java.io.File here (2026-09-24).
+        ;; An explicit floor: the java.io.File method functions (exists?, file?,
+        ;; parent-file, canonical-path, mkdirs, list-files ...) are in kotoba.io
+        ;; from this sha, and tools.deps takes the NEWEST sha it is shown.
+        io.github.kotoba-lang/io {:git/sha "1b60ca825c1e705bd195f857ca4549133653a9f3"}
+        ;; kotoba.pprint replaced clojure.pprint here (2026-09-24): the same
+        ;; bytes (cljs.pprint transcribed). An explicit floor; tools.deps takes the
+        ;; NEWEST sha it is shown.
+        io.github.kotoba-lang/pprint {:git/sha "5c9d4aea71d6caac529fffcf361aba0f87ee485e"}
+        ;; kotoba.lang.coll replaced clojure.set here (2026-09-24). An explicit
+        ;; floor: kotoba.lang.coll carries clojure.set's union/intersection/
+        ;; difference/map-invert from 0ffd5f6, and tools.deps takes the NEWEST
+        ;; sha it is shown.
+        io.github.kotoba-lang/coll {:git/sha "f74e248f0a07e8ae572885f50fab6bdb39dc24be"}
         ;; kotoba.lang.edn replaced clojure.edn here (2026-09-23). An explicit floor:
         ;; tools.deps takes the NEWEST sha it is shown, and kbb resolves git deps
         ;; only from nbb.edn, so every project file this repo has names it.

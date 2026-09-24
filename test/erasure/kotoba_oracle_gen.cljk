@@ -12,8 +12,8 @@
   Unlike `erasure.kotoba-parity-test`, this compiles the file AS IT STANDS —
   the parity harness strips the port's own `ns` form so it can add probe
   functions, and a shipped artifact must be the source, not a variant of it."
-  (:require [clojure.java.io :as io]
-            [clojure.pprint :as pp]
+  (:require [kotoba.io :as io]
+            [kotoba.pprint :as pp]
             [erasure.kotoba-oracle :as oracle]
             [kotoba.compiler.core :as compiler])
   (:gen-class))
@@ -36,7 +36,7 @@
   (let [out (io/file "resources" (oracle/resource-path id))]
     (io/make-parents out)
     (spit out (with-out-str (pp/pprint (compile-kir source-path))))
-    (.getPath out)))
+    (io/path out)))
 
 (defn regenerate-all! []
   (mapv (fn [[id source]] (write-artifact! id source)) (sort-by key oracle/cores)))
