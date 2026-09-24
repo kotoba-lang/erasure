@@ -25,7 +25,7 @@
   cheap, a bounded random sample at t=7 on the production configuration, and
   the specific 8-shard witnesses that must fail. `slow-distance-sweep` below
   reproduces the full numbers on demand."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [erasure.codec :as codec]
             [erasure.lrc :as lrc]))
 

@@ -15,7 +15,7 @@
   anyone having to trust that the two agree."
   (:require [clojure.set :as set]
             [kotoba.lang.text :as str]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [erasure.gf :as gf]
             [erasure.lrc :as lrc]
             [kotoba.compiler.core :as compiler]

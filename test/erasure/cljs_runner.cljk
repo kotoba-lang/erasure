@@ -32,7 +32,7 @@
   strings. This core is `:i64` in and `:i64`/`:bool` out with no string
   anywhere, so it should not reach it — and this runner is how that is checked
   rather than assumed."
-  (:require [clojure.test :as t :refer [run-tests]]
+  (:require [kotoba.test :as t :refer [run-tests]]
             ;; FIRST, and load-bearing: `erasure.codec-test` builds a layout in
             ;; a top-level `def`, which reaches the oracle while it is being
             ;; loaded. See that namespace for why this is not in `-main`.

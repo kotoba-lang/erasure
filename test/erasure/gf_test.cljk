@@ -1,5 +1,5 @@
 (ns erasure.gf-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [erasure.gf :as gf]))
 
 (deftest table-multiply-matches-the-definition

@@ -23,7 +23,7 @@
            `typed-set-contains` compares. Scalar `:i64` exports are fine on the
            same runtime, in the same probe, which is why the rest of the port
            delegates on both."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [erasure.kotoba-oracle :as oracle]
             #?(:cljs [erasure.cljs-kir])))
 

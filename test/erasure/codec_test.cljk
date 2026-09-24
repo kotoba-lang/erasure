@@ -1,5 +1,5 @@
 (ns erasure.codec-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [erasure.codec :as codec]
             [erasure.gf :as gf]
             [erasure.lrc :as lrc]
