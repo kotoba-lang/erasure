@@ -17,7 +17,7 @@
   test ever written, because a host copy is exactly what those tests compare
   against. So this asks the only question that separates them — swap in a core
   that answers differently and see whether the host follows."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [clojure.java.io :as io]
             [kotoba.lang.text :as str]
             [kotoba.test :refer [deftest is testing]]
