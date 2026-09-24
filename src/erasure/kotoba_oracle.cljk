@@ -100,7 +100,7 @@
   node host would do."
   (:require [kotoba.kir :as kir]
             ;; Both only exist on the branch that has a classpath to read from.
-            #?@(:clj [[clojure.edn :as edn]
+            #?@(:clj [[kotoba.lang.edn :as edn]
                       [clojure.java.io :as io]])))
 
 (def cores
