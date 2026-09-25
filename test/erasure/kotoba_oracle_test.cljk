@@ -17,8 +17,8 @@
   test ever written, because a host copy is exactly what those tests compare
   against. So this asks the only question that separates them — swap in a core
   that answers differently and see whether the host follows."
-  (:require [kotoba.lang.edn :as edn]
-            [clojure.java.io :as io]
+  (:require [kotoba.lang.error :as kerror] [kotoba.lang.edn :as edn]
+            [kotoba.io :as io]
             [kotoba.lang.text :as str]
             [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.coll :as walk]
@@ -130,9 +130,9 @@
 (deftest a-missing-artifact-throws-rather-than-deciding-anything
   ;; The seam's one refusal. If it fell back instead, the first thing anyone
   ;; would notice is that a decision quietly stopped being the shipped one.
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"shipped decision core is missing"
+  (is (thrown-with-msg? kerror/ExceptionInfo #"shipped decision core is missing"
                         (oracle/kir :not-a-core)))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"does not declare that export"
+  (is (thrown-with-msg? kerror/ExceptionInfo #"does not declare that export"
                         (oracle/param-types :erasure-core 'no-such-export))))
 
 ;; --- the ABI the host builds arguments out of -----------------------------
