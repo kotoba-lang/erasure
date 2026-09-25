@@ -1,9 +1,12 @@
 {:deps {
+        ;; kotoba.lang.error replaced clojure.lang.ExceptionInfo here (2026-09-25).
+        ;; An explicit floor: tools.deps takes the NEWEST sha it is shown.
+        io.github.kotoba-lang/error {:git/sha "838dec56c9a5b74f9eec825a2fb28bda157f8cd3"}
         ;; kotoba.io replaced clojure.java.io / java.io.File here (2026-09-24).
         ;; An explicit floor: the java.io.File method functions (exists?, file?,
         ;; parent-file, canonical-path, mkdirs, list-files ...) are in kotoba.io
         ;; from this sha, and tools.deps takes the NEWEST sha it is shown.
-        io.github.kotoba-lang/io {:git/sha "1b60ca825c1e705bd195f857ca4549133653a9f3"}
+        io.github.kotoba-lang/io {:git/sha "72dde04b4c32854d70d17a670b277f8f7957a784"}
         ;; kotoba.pprint replaced clojure.pprint here (2026-09-24): the same
         ;; bytes (cljs.pprint transcribed). An explicit floor; tools.deps takes the
         ;; NEWEST sha it is shown.

@@ -101,7 +101,7 @@
   (:require [kotoba.kir :as kir]
             ;; Both only exist on the branch that has a classpath to read from.
             #?@(:clj [[kotoba.lang.edn :as edn]
-                      [clojure.java.io :as io]])))
+                      [kotoba.io :as io]])))
 
 (def cores
   "Oracle id -> the .kotoba it was compiled from, relative to the repo root."
